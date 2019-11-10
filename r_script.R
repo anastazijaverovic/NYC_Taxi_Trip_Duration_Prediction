@@ -67,9 +67,9 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
   }
 }
 
-train <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION/train.csv"))
-test <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION/test.csv"))
-sample_submit <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION/sample_submission.csv"))
+train <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION_1/train.csv"))
+test <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION_1/test.csv"))
+sample_submit <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION_1/sample_submission.csv"))
 
 
 #datasets overview, first train then test
@@ -136,7 +136,166 @@ train %>%
 set.seed(1234)    #seed of random number generator
 foo <- sample_n(train, 8e3)   #get random numbers
 
+#1 pickup longitude, latitude visualization
 leaflet(data = foo) %>% addProviderTiles("Esri.NatGeoWorldMap") %>%
-  addCircleMarkers(~ pickup_longitude, ~pickup_latitude, radius = 1,
+  addCircleMarkers(~pickup_longitude, ~pickup_latitude, radius = 1,
                    color = "yellow", fillOpacity = 1)
+
+
+#2 taxi trip duration distribution
+
+train %>%
+  ggplot(aes(trip_duration)) +
+  geom_histogram(fill = "blue", bins = 150) +
+  scale_x_log10() +
+  labs(x = "Trip duration", y = "Number of rides")
+
+
+#2.1 select top 10 biggest trip durations (measured in seconds)
+
+train %>%
+  arrange(desc(trip_duration)) %>%
+  select(trip_duration, pickup_datetime, dropoff_datetime, everything()) %>%
+  head(10)
+
+#2.2 trip durations by days
+
+train %>%
+  mutate(wday = wday(pickup_datetime, label = TRUE)) %>%
+  group_by(wday) %>%
+  summarize(median_duration = median(trip_duration/60)) %>%
+  ggplot(aes(wday,median_duration)) +
+  geom_point(size = 4, colour = "blue") +
+  labs(x = "Day of the week", y = "Median trip duration [minutes]")
+
+#2.3 trip durations by hours in the day
+
+train %>%
+  mutate(hour = hour(pickup_datetime)) %>%
+  group_by(hour) %>%
+  summarize(median_duration = median(trip_duration/60)) %>%
+  ggplot(aes(hour,median_duration)) +
+  geom_line(size = 1.5, colour = "blue") +
+  labs(x = "Hour of the day", y = "Median trip duration [minutes]")
+
+#2.4 trip durations and passenger count
+
+train %>%
+  group_by(passenger_count) %>%
+  summarize(median_duration = median(trip_duration/60)) %>%
+  ggplot(aes(passenger_count, median_duration)) +
+  geom_point()
+
+#2.5 trip duration densities by vendors
+
+train %>%
+  ggplot(aes(trip_duration, fill = vendor_id)) +
+  geom_density(position = "stack") +
+  scale_x_log10()
+
+#2.6 mean and median values of trip duration by each vendor
+
+train %>%
+  group_by(vendor_id) %>%
+  summarise(median = median(trip_duration),
+            mean = mean(trip_duration))
+
+#2.7 no connection to server flag connection to trip duration
+
+train %>%
+  ggplot(aes(store_and_fwd_flag, dur = (trip_duration/60))) +
+  geom_bar()
+
+#3 pickup and dropoff dates distributions over the year
+
+p1 <- train %>%
+  ggplot(aes(pickup_datetime)) +
+  geom_histogram(fill = "red", bins = 120) +
+  labs(x = "Pickup dates", y="Number of rides")
+
+p2 <- train %>%
+  ggplot(aes(dropoff_datetime)) +
+  geom_histogram(fill = "blue", bins = 120) +
+  labs(x = "Dropoff dates", y="Number of rides")
+
+layout <- matrix(c(1,2),2,1,byrow = FALSE)
+multiplot(p1, p2, layout = layout)
+
+#3.1 insight into drop between January and February in pickup, dropoff times
+
+train %>%
+  filter(pickup_datetime > ymd("2016-01-20") & pickup_datetime < ymd("2016-02-10")) %>%
+  ggplot(aes(pickup_datetime)) +
+  geom_histogram(fill = "red", bins = 120)
+
+#3.2 pickup distributions by days of the week
+
+p3 <- train %>%
+  mutate(wday = wday(pickup_datetime, label = TRUE)) %>%
+  group_by(wday, vendor_id) %>%
+  count() %>%
+  ggplot(aes(wday, n, colour = vendor_id)) +
+  geom_point(size = 4) +
+  labs(x = "Day of the week", y = "Total number of pickups") +
+  theme(legend.position = "none")
+
+#3.3 pickup distributions by times of the day
+
+p4 <- train %>%
+  mutate(hpick = hour(pickup_datetime)) %>%
+  group_by(hpick, vendor_id) %>%
+  count() %>%
+  ggplot(aes(hpick, n, colour = vendor_id)) +
+  geom_point(size = 4) +
+  labs(x = "Time of the day", y = "Total number of pickups") +
+  theme(legend.position = "none")
+
+#3.4 pickup distributions by months and times of the day
+
+train %>%
+  mutate(hpick = hour(pickup_datetime),
+         month = factor(month(pickup_datetime))) %>%
+  group_by(hpick, month) %>%
+  count() %>%
+  ggplot(aes(hpick, n, color = month)) +
+  geom_line(size = 1.5)
+
+#3.5 pickup distributions by days of the week and times of the day
+
+train %>%
+  mutate(hpick = hour(pickup_datetime),
+         wday = factor(wday(pickup_datetime))) %>%
+  group_by(hpick, wday) %>%
+  count() %>%
+  ggplot(aes(hpick, n, color = wday)) +
+  geom_line(size = 1.5)
+
+
+#4 passenger count
+
+p5 <- train %>%
+  group_by(passenger_count) %>%
+  count() %>%
+  ggplot(aes(passenger_count, n, fill = passenger_count)) +
+  geom_col() +
+  scale_y_sqrt() +
+  theme(legend.position = "none")
+
+#5 vendor
+
+train %>%
+  ggplot(aes(vendor_id, fill = vendor_id)) +
+  geom_bar()
+
+#6 no connection to server - trip information was held in vehicle memory if flag = Y
+
+p6 <- train %>%
+  ggplot(aes(store_and_fwd_flag, fill = store_and_fwd_flag)) +
+  geom_bar() +
+  scale_y_log10()
+
+layout <- matrix(c(1,2,3,4,5,6),3,2,byrow=TRUE)
+multiplot(p1, p2, p3, p4, p5, p6, layout=layout)
+
+
 

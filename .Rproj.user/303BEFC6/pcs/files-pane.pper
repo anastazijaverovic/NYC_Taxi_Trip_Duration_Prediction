@@ -1,0 +1,9 @@
+{
+    "path" : "~/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION",
+    "sortOrder" : [
+        {
+            "ascending" : true,
+            "columnIndex" : 2
+        }
+    ]
+}
