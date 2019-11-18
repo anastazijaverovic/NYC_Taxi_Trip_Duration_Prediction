@@ -206,7 +206,9 @@ train %>%
   ggplot(aes(store_and_fwd_flag, dur = (trip_duration/60))) +
   geom_bar()
 
-#3 pickup and dropoff dates distributions over the year
+#3 pickup and dropoff dates
+
+#3.1 pickup and dropoff dates distributions over the year
 
 p1 <- train %>%
   ggplot(aes(pickup_datetime)) +
@@ -221,14 +223,14 @@ p2 <- train %>%
 layout <- matrix(c(1,2),2,1,byrow = FALSE)
 multiplot(p1, p2, layout = layout)
 
-#3.1 insight into drop between January and February in pickup, dropoff times
+#3.2 insight into drop between January and February in pickup, dropoff times
 
 train %>%
   filter(pickup_datetime > ymd("2016-01-20") & pickup_datetime < ymd("2016-02-10")) %>%
   ggplot(aes(pickup_datetime)) +
   geom_histogram(fill = "red", bins = 120)
 
-#3.2 pickup distributions by days of the week
+#3.3 pickup distributions by days of the week
 
 p3 <- train %>%
   mutate(wday = wday(pickup_datetime, label = TRUE)) %>%
@@ -239,7 +241,7 @@ p3 <- train %>%
   labs(x = "Day of the week", y = "Total number of pickups") +
   theme(legend.position = "none")
 
-#3.3 pickup distributions by times of the day
+#3.4 pickup distributions by times of the day
 
 p4 <- train %>%
   mutate(hpick = hour(pickup_datetime)) %>%
@@ -250,7 +252,7 @@ p4 <- train %>%
   labs(x = "Time of the day", y = "Total number of pickups") +
   theme(legend.position = "none")
 
-#3.4 pickup distributions by months and times of the day
+#3.5 pickup distributions by months and times of the day
 
 train %>%
   mutate(hpick = hour(pickup_datetime),
@@ -260,7 +262,7 @@ train %>%
   ggplot(aes(hpick, n, color = month)) +
   geom_line(size = 1.5)
 
-#3.5 pickup distributions by days of the week and times of the day
+#3.6 pickup distributions by days of the week and times of the day
 
 train %>%
   mutate(hpick = hour(pickup_datetime),
@@ -287,7 +289,9 @@ train %>%
   ggplot(aes(vendor_id, fill = vendor_id)) +
   geom_bar()
 
-#6 no connection to server - trip information was held in vehicle memory if flag = Y
+#6 no connection to server
+
+#6.1 no connection to server - trip information was held in vehicle memory if flag = Y
 
 p6 <- train %>%
   ggplot(aes(store_and_fwd_flag, fill = store_and_fwd_flag)) +
@@ -297,5 +301,84 @@ p6 <- train %>%
 layout <- matrix(c(1,2,3,4,5,6),3,2,byrow=TRUE)
 multiplot(p1, p2, p3, p4, p5, p6, layout=layout)
 
+#6.2 trip information held in vehicle memory by vendor
+
+train %>%
+  group_by(vendor_id, store_and_fwd_flag) %>%
+  count()
+
+#6.3 trip information held in vehicle memory and trip duration correlation
+
+train %>%
+  ggplot(aes(store_and_fwd_flag, trip_duration, color = store_and_fwd_flag)) +
+  geom_boxplot() +
+  scale_y_log10()
+
+#7 number of passengers and trip duration correlation
+
+train %>%
+  ggplot(aes(passenger_count, trip_duration, color = passenger_count)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "Trip duration [s]", x = "Number of passengers")
 
 
+#feature engineering - building new features from existing ones
+
+#1 jfk and la guradia airports coordinates (from Wikipedia)
+
+jfk_coord <- tibble(lon = -73.778889, lat = 40.639722)
+la_guardia_coord <- tibble(lon = -73.872611, lat = 40.77725)
+
+#2 pickup and dropoff coordinates
+
+pick_coord <- train %>%
+  select(pickup_longitude, pickup_latitude)
+
+drop_coord <- train %>%
+  select(dropoff_longitude, dropoff_latitude)
+
+#3 distance and direction between pickup and dropoff coordinates
+
+#distCosine function returns an object of the class dist, containing distances between each pair of samples
+
+train$dist <- distCosine(pick_coord, drop_coord)
+
+train$bearing = bearing(pick_coord, drop_coord)
+
+#distances between pickup and dropoff locations and airports
+
+train$jfk_dist_pick <- distCosine(pick_coord, jfk_coord)
+
+train$jfk_dist_drop <- distCosine(drop_coord, jfk_coord)
+
+train$lg_dist_pick <- distCosine(pick_coord, la_guardia_coord)
+
+train$lg_dist_drop <- distCosine(drop_coord, la_guardia_coord)
+
+
+#add columns
+
+train <- train %>%
+  
+  mutate(speed = dist/trip_duration*3.6,
+         
+         date = date(pickup_datetime),
+         
+         month = month(pickup_datetime, label = TRUE),
+         
+         wday = wday(pickup_datetime, label = TRUE),
+         
+         wday = fct_relevel(wday, c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")),
+         
+         hour = hour(pickup_datetime),
+         
+         work = (hour %in% seq(8,18)) & (wday %in% c("Mon","Tues","Wed","Thurs","Fri")),
+         
+         jfk_trip = (jfk_dist_pick < 2e3) | (jfk_dist_drop < 2e3),
+         
+         lg_trip = (lg_dist_pick < 2e3) | (lg_dist_drop < 2e3),
+         
+         blizzard = !( (date < ymd("2016-01-22") | (date > ymd("2016-01-29"))) )
+         
+  )
