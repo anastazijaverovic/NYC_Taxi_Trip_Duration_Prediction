@@ -178,7 +178,16 @@ train %>%
   geom_line(size = 1.5, colour = "blue") +
   labs(x = "Hour of the day", y = "Median trip duration [minutes]")
 
-#2.4 trip durations and passenger count
+#2.4 trip durations by days in the week and times of the day
+
+train %>%
+  group_by(wday, hour) %>%
+  summarize(median_duration = median(trip_duration/60)) %>%
+  ggplot(aes(hour, wday, fill = median_duration)) +
+  geom_tile() +
+  scale_fill_distiller(palette = "Spectral")
+
+#2.5 trip durations and passenger count
 
 train %>%
   group_by(passenger_count) %>%
@@ -186,21 +195,21 @@ train %>%
   ggplot(aes(passenger_count, median_duration)) +
   geom_point()
 
-#2.5 trip duration densities by vendors
+#2.6 trip duration densities by vendors
 
 train %>%
   ggplot(aes(trip_duration, fill = vendor_id)) +
   geom_density(position = "stack") +
   scale_x_log10()
 
-#2.6 mean and median values of trip duration by each vendor
+#2.7 mean and median values of trip duration by each vendor
 
 train %>%
   group_by(vendor_id) %>%
   summarise(median = median(trip_duration),
             mean = mean(trip_duration))
 
-#2.7 no connection to server flag connection to trip duration
+#2.8 no connection to server flag connection to trip duration
 
 train %>%
   ggplot(aes(store_and_fwd_flag, dur = (trip_duration/60))) +
@@ -340,13 +349,13 @@ drop_coord <- train %>%
 
 #3 distance and direction between pickup and dropoff coordinates
 
-#distCosine function returns an object of the class dist, containing distances between each pair of samples
+#distCosine - the shortest distance between two points on a spherical earth
 
 train$dist <- distCosine(pick_coord, drop_coord)
 
 train$bearing = bearing(pick_coord, drop_coord)
 
-#distances between pickup and dropoff locations and airports
+#3.1 distances between pickup and dropoff locations and airports
 
 train$jfk_dist_pick <- distCosine(pick_coord, jfk_coord)
 
@@ -361,24 +370,88 @@ train$lg_dist_drop <- distCosine(drop_coord, la_guardia_coord)
 
 train <- train %>%
   
-  mutate(speed = dist/trip_duration*3.6,
-         
-         date = date(pickup_datetime),
-         
-         month = month(pickup_datetime, label = TRUE),
-         
-         wday = wday(pickup_datetime, label = TRUE),
-         
-         wday = fct_relevel(wday, c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")),
-         
-         hour = hour(pickup_datetime),
-         
-         work = (hour %in% seq(8,18)) & (wday %in% c("Mon","Tues","Wed","Thurs","Fri")),
-         
-         jfk_trip = (jfk_dist_pick < 2e3) | (jfk_dist_drop < 2e3),
-         
-         lg_trip = (lg_dist_pick < 2e3) | (lg_dist_drop < 2e3),
-         
-         blizzard = !( (date < ymd("2016-01-22") | (date > ymd("2016-01-29"))) )
-         
+  mutate(
+    
+    speed = dist/trip_duration*3.6,
+    
+    date = date(pickup_datetime),
+    
+    month = month(pickup_datetime, label = TRUE),
+    
+    wday = wday(pickup_datetime, label = TRUE),
+    
+    wday = fct_relevel(wday, c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")),
+    
+    hour = hour(pickup_datetime),
+    
+    work = (hour %in% seq(8,18)) & (wday %in% c("Mon","Tues","Wed","Thurs","Fri")),
+    
+    #| performs element-wise operation producing result having length of the longer operand
+    jfk_trip = (jfk_dist_pick < 2e3) | (jfk_dist_drop < 2e3), #2e3 is the same as 2 x 10^3 = 2000
+    
+    lg_trip = (lg_dist_pick < 2e3) | (lg_dist_drop < 2e3),
+    
+    blizzard = !( (date < ymd("2016-01-22") | (date > ymd("2016-01-29"))) )
   )
+
+
+#3.2 direct distances and trip duration correlation
+
+set.seed(4321)
+
+train %>%
+  sample_n(5e4) %>%
+  ggplot(aes(dist, trip_duration)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Direct distance [m]", y = "Trip duration [s]")
+
+#removing extreme values
+
+train %>%
+  filter(trip_duration > 120 & trip_duration < 3600) %>%
+  filter(dist > 100 & dist < 100e3) %>%
+  sample_n(5e4) %>%
+  ggplot(aes(dist, trip_duration)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "Direct distance [m]", y = "Trip duration [s]")
+
+#3.3 travel speed distribution
+
+train %>%
+  filter(speed > 2 & speed < 1e2) %>%
+  ggplot(aes(speed)) +
+  geom_histogram(fill = "red", bins = 50) +
+  labs(x = "Average speed [km/h] (direct distance)", y = "Number of drives")
+
+
+#3.4 average speed per day of the week
+
+train %>%
+  group_by(wday) %>%
+  summarize(median_speed = median(speed)) %>%
+  ggplot(aes(wday,median_speed)) +
+  geom_point(size = 4) +
+  labs(x = "Day of the week", y = "Median speed [km/h]")
+
+#3.5 average speed per time of the day
+
+train %>%
+  group_by(hour) %>%
+  summarize(median_speed = median(speed)) %>%
+  ggplot(aes(hour,median_speed)) +
+  geom_smooth(method = "loess", span = 1/2) +
+  geom_point(size = 4) +
+  labs(x = "Hour of the day", y = "Median speed [km/h]")
+
+#3.6 average speed per day and time of the week
+
+train %>%
+  group_by(hour, wday) %>%
+  summarize(median_speed = median(speed)) %>%
+  ggplot(aes(hour, wday, fill = median_speed)) +
+  geom_tile() +
+  scale_fill_distiller(palette = "Spectral")
