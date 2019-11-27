@@ -454,4 +454,70 @@ train %>%
   summarize(median_speed = median(speed)) %>%
   ggplot(aes(hour, wday, fill = median_speed)) +
   geom_tile() +
-  scale_fill_distiller(palette = "Spectral")
+  scale_fill_distiller(palette = "Spectral") +
+  labs(x="Hour of the day", y="Day of the week")
+
+#4 airport distances
+#4.1 pickup-JFK
+
+train %>%
+  ggplot(aes(jfk_dist_pick)) +
+  geom_histogram(bins = 50, fill="red") +
+  scale_x_log10() +
+  scale_y_sqrt() +
+  labs(x="Distance between pickup location and JFK", y="Number of rides")
+
+#4.2 dropoff-JFK
+
+train %>%
+  ggplot(aes(jfk_dist_drop)) +
+  geom_histogram(bins = 50, fill="red") +
+  scale_x_log10() +
+  scale_y_sqrt() +
+  labs(x="Distance between dropoff location and JFK", y="Number of rides")
+
+#4.3 pickup-La Guardia
+
+train %>%
+  ggplot(aes(lg_dist_pick)) +
+  geom_histogram(bins = 50, fill="blue") +
+  scale_x_log10() +
+  scale_y_sqrt() +
+  labs(x="Distance between pickup location and La Guardia", y="Number of rides")
+
+#4.4 dropoff-La Guardia
+
+train %>%
+  ggplot(aes(lg_dist_drop)) +
+  geom_histogram(bins = 50, fill="blue") +
+  scale_x_log10() +
+  scale_y_sqrt() +
+  labs(x="Distance between dropoff location and La Guardia", y="Number of rides")
+
+#4.5 JFK trip durations
+
+train %>%
+  filter(trip_duration < 23*3600) %>%
+  ggplot(aes(jfk_trip, trip_duration, color = jfk_trip)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(x = "JFK trip")
+
+#4.6 La Guardia trip durations
+
+train %>%
+  filter(trip_duration < 23*3600) %>%
+  ggplot(aes(lg_trip, trip_duration, color = lg_trip)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(x = "La Guardia trip")
+
+#data cleaning
+
+#cleaning training data
+#5.1 extreme trip durations
+
+day_plus_trips <- train %>%
+  filter(trip_duration > 24*3600)
+
+day_plus_trips %>% select(pickup_datetime, dropoff_datetime, speed)
