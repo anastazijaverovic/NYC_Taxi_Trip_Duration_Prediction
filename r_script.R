@@ -515,9 +515,29 @@ train %>%
 #data cleaning
 
 #cleaning training data
-#5.1 extreme trip durations
+#5.1 extreme trip durations - trip longer than 24 hours
 
 day_plus_trips <- train %>%
   filter(trip_duration > 24*3600)
 
 day_plus_trips %>% select(pickup_datetime, dropoff_datetime, speed)
+
+#save map as data frame
+ny_map <- as_tibble(map_data("state", region = "new york:manhattan"))
+
+#pickup longitude and latitude
+tpickup <- day_plus_trips %>%
+  select(longitude = pickup_longitude, latitude = pickup_latitude)
+
+#dropoff longitude and latitude
+tdropoff <- day_plus_trips %>%
+  select(longitude = dropoff_longitude, latitude = dropoff_latitude)
+
+#geom_polygon - like path with start and end points connected
+ggplot() +
+  geom_polygon(data = ny_map, aes(x = long, y = lat)) +
+  geom_point(data = tpickup, aes(x = longitude, y = latitude)) +
+  geom_point(data = tdropoff, aes(x = longitude, y = latitude))
+
+
+
