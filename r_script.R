@@ -515,7 +515,7 @@ train %>%
 #data cleaning
 
 #cleaning training data
-#5.1 extreme trip durations - trip longer than 24 hours
+#5.1 extreme trip durations - trips longer than 24 hours
 
 day_plus_trips <- train %>%
   filter(trip_duration > 24*3600)
@@ -534,10 +534,31 @@ tdropoff <- day_plus_trips %>%
   select(longitude = dropoff_longitude, latitude = dropoff_latitude)
 
 #geom_polygon - like path with start and end points connected
-ggplot() +
-  geom_polygon(data = ny_map, aes(x = long, y = lat)) +
-  geom_point(data = tpickup, aes(x = longitude, y = latitude)) +
-  geom_point(data = tdropoff, aes(x = longitude, y = latitude))
+p1 <- ggplot() +
+  geom_polygon(data = ny_map, aes(x = long, y = lat), fill="grey") +
+  geom_point(data = tpickup, aes(x = longitude, y = latitude), color="red") +
+  geom_point(data = tdropoff, aes(x = longitude, y = latitude), color="blue")
+
+#for every row - draw line between pickup and dropoff points
+#seq() function generates a sequence of numbers
+#gcIntermediate - gets the 2D projection of a line moving between two points on a sphere
+#addStartEnd - add longitudes/latitudes to result
+for (i in seq(1,nrow(tpickup))){
+  inter <- as_tibble(gcIntermediate(tpickup[i,],  tdropoff[i,], n=30, addStartEnd=TRUE))
+  p1 <- p1 + geom_line(data=inter,aes(x=lon,y=lat),color='blue',alpha=.75)
+}
+
+
+#5.2.1 top 5 trips between 22 hours and 24 hours - list
+
+filter(trip_duration > 22*3600 & trip_duration < 24*3600)
+
+day_plus_trips %>%
+  arrange(desc(dist)) %>%
+  select(dist, pickup_datetime, dropoff_datetime, speed) %>%
+  head(5)
+
+#5.2.2 trips between 22 hours and 24 hours - map
 
 
 
