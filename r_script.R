@@ -533,7 +533,7 @@ tpickup <- day_plus_trips %>%
 tdropoff <- day_plus_trips %>%
   select(longitude = dropoff_longitude, latitude = dropoff_latitude)
 
-#geom_polygon - like path with start and end points connected
+#geom_polygon - visualization of start and end points connected
 p1 <- ggplot() +
   geom_polygon(data = ny_map, aes(x = long, y = lat), fill="grey") +
   geom_point(data = tpickup, aes(x = longitude, y = latitude), color="red") +
@@ -551,14 +551,68 @@ for (i in seq(1,nrow(tpickup))){
 
 #5.2.1 top 5 trips between 22 hours and 24 hours - list
 
-filter(trip_duration > 22*3600 & trip_duration < 24*3600)
+close_to_day_trips <- train %>% filter(trip_duration > 22*3600 & trip_duration < 24*3600)
 
-day_plus_trips %>%
+close_to_day_trips %>%
   arrange(desc(dist)) %>%
   select(dist, pickup_datetime, dropoff_datetime, speed) %>%
   head(5)
 
+#distance in m - biggest distance is 60km
+
 #5.2.2 trips between 22 hours and 24 hours - map
 
+#take sample of random 200 trips
+set.seed(2017)
+
+close_to_day_trips <- close_to_day_trips %>% sample_n(200)
+
+#pickup longitude and latitude
+tpickup <- close_to_day_trips %>%
+  select(longitude = pickup_longitude, latitude = pickup_latitude)
+
+#dropoff longitude and latitude
+tdropoff <- close_to_day_trips %>%
+  select(longitude = dropoff_longitude, latitude = dropoff_latitude)
+
+p1 <- ggplot() +
+  geom_polygon(data = ny_map, aes(x = long, y = lat), fill="grey") +
+  geom_point(data = tpickup, aes(x = longitude, y = latitude), color="red") +
+  geom_point(data = tdropoff, aes(x = longitude, y = latitude), color="blue")
+
+
+for (i in seq(1,nrow(tpickup))){
+  inter <- as_tibble(gcIntermediate(tpickup[i,],  tdropoff[i,], n=30, addStartEnd=TRUE))
+  p1 <- p1 + geom_line(data=inter,aes(x=lon,y=lat),color='blue',alpha=.75)
+}
+
+p1 + ggtitle("Trips with duration close to a day in relation to Manhattan")
+
+p1 <- 1
+
+#5.3 trips shorter than a few minutes
+
+short_trips <- train %>% filter(trip_duration < 5*60)
+
+short_trips %>%
+  arrange(dist) %>%
+  select(dist, pickup_datetime, dropoff_datetime, speed) %>%
+  head(5)
+
+#5.3.1 short trips with near zero distance
+
+zero_dist_trips <- train %>%
+  filter(near(dist,0))
+
+#nrow() - number of rows
+nrow(zero_dist_trips)
+
+#5.3.1.1 longest trips with near zero distance
+zero_dist_trips %>%
+  arrange(desc(trip_duration)) %>%
+  select(trip_duration, pickup_datetime, dropoff_datetime, vendor_id) %>%
+  head(10)
+
+#next - trip duration distribution after removal of extreme cases
 
 
