@@ -102,7 +102,7 @@ combine <- bind_rows(train %>% mutate(dset = "train"),
                                      trip_duration = NA))
 combine <- combine %>% mutate(dset = factor(dset))
 
-#data and time - from characters to date
+#date and time - from characters to date
 
 #vendor_id as factor
 
@@ -113,7 +113,7 @@ train <- train %>%
          passenger_count = factor(passenger_count))
 
 #consistency check if trip_durations = dropoff_datetime - pickup_datetime
-#if consistent - FALSE
+#if consistent - TRUE
 
 #int_length - get the length of an interval in seconds
 #interval() - creates an interval object with start and end dates
@@ -613,6 +613,20 @@ zero_dist_trips %>%
   select(trip_duration, pickup_datetime, dropoff_datetime, vendor_id) %>%
   head(10)
 
-#next - trip duration distribution after removal of extreme cases
+#trip duration distribution after removal of extreme cases
+zero_dist_trips %>% filter(trip_duration < 6000) %>%
+  ggplot(aes(trip_duration)) +
+  geom_histogram(bins=50) +
+  scale_x_log10()
+
+#5.3.1.2 short trips with biggest speed
+min_trips <- train %>%
+  filter(trip_duration < 5*60 & dist > 0)
+
+min_trips %>%
+  arrange(desc(speed)) %>%
+  select(trip_duration,dist,speed) %>%
+  head(10)
+
 
 
