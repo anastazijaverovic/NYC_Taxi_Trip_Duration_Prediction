@@ -628,5 +628,41 @@ min_trips %>%
   select(trip_duration,dist,speed) %>%
   head(10)
 
+#5.4 trips more than 300km from airport
+#3e5 = 3 and 5 zeros = 300 000 meters
+#jfk_dist_pick - distances between pickup location and airport (representing one location - NY)
+
+long_distance_trips <- train %>%
+  filter((jfk_dist_pick > 3e5) | (jfk_dist_drop > 3e5))
+
+long_distance_coord <- long_distance_trips %>%
+  select(lon = pickup_longitude, lat = pickup_latitude)
+
+long_distance_trips %>%
+  arrange(desc(dist)) %>%
+  select(id, dist, pickup_longitude, pickup_latitude, dropoff_longitude, dropoff_latitude)
 
 
+leaflet(long_distance_coord) %>%
+  addTiles() %>%
+  setView(-92.00, 41.0, zoom = 4) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addMarkers(popup = ~as.character(long_distance_trips$dist), label = ~as.character(long_distance_trips$id))
+
+#next1 - some distant places are missing from the map
+
+#final cleaning - removal of filtered data
+
+train <- train %>%
+  
+  filter(trip_duration < 22*3600,   #trip_duration < 22h
+         
+         dist > 0 | (near(dist, 0) & trip_duration < 60),  #minimal distances and duration < 1 min
+         
+         jfk_dist_pick < 3e5 & jfk_dist_drop < 3e5,  #more than 300km away from jfk
+         
+         trip_duration > 10,
+         
+         speed < 100)
+
+#next2 - weather reports from that period
