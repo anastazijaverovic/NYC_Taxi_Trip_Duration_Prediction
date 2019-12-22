@@ -665,4 +665,114 @@ train <- train %>%
          
          speed < 100)
 
-#next2 - weather reports from that period
+#weather reports from that period
+
+weather <- as_tibble(fread("/Users/anastazijaverovic/Desktop/NYC_TAXI_TRIP_DURATION_PREDICTION_1/weather_data_nyc_centralpark_2016(1).csv"))
+
+#converting date into lubridate object
+#Lubridate makes it easier to do the things R does with date-times and possible to do the things R does not
+#(robust to time zones, leap days, daylight savings times)
+
+
+weather <- weather %>%
+  mutate(date = dmy(date),
+         max_temp = `maximum temperature`,
+         min_temp = `minimum temperature`,
+         rain = as.numeric(if_else(precipitation == "T", "0.01", precipitation)),
+         snow_fall = as.numeric(if_else(`snow fall` == "T", "0.01", `snow fall`)),
+         snow_depth = as.numeric(if_else(`snow depth` == "T", "0.01", `snow depth`)),
+         all_precipitation = snow_fall + rain,
+         has_snow = (snow_fall > 0) | (snow_depth > 0),
+         has_rain = rain > 0
+  )
+
+temp <- weather %>%
+  select(date, max_temp, min_temp, rain, snow_fall, snow_depth, all_precipitation, has_snow, has_rain)
+
+
+train <- left_join(train, temp, by = "date")
+
+#comparison - number of rides - weather - ride speed
+
+#number of rides by month
+
+p1 <- train %>%
+  group_by(date) %>%
+  count() %>%
+  ggplot(aes(date, n)) +
+  geom_line(size = 1.5, color = "red") +
+  labs(x = "Date", y = "Number of trips")
+
+#weather - rain
+
+p2 <- train %>%
+  group_by(date) %>%
+  summarise(trips = n(),
+            mean_rain = mean(rain)) %>%
+  ggplot(aes(date, mean_rain)) +
+  geom_line(size = 1.5, color = "blue")+
+  labs(x = "Date", y = "Rain fall")
+
+#weather - snow fall
+
+p3 <- train %>%
+  group_by(date) %>%
+  summarise(trips = n(),
+            mean_snow = mean(snow_fall)) %>%
+  ggplot(aes(date, mean_snow)) +
+  geom_line(size = 1.5, color = "black")+
+  labs(x = "Date", y = "Snow fall")
+
+#weather - snow depth
+
+p4 <- train %>%
+  group_by(date) %>%
+  summarise(trips = n(),
+            mean_snow_depth = mean(snow_depth)) %>%
+  ggplot(aes(date, mean_snow_depth)) +
+  geom_line(size = 1.5, color = "black") +
+  labs(x = "Date", y = "Snow depth")
+
+#speed
+
+p5 <- train %>%
+  group_by(date) %>%
+  summarise(trips = n(),
+            mean_speed = mean(speed)) %>%
+  ggplot(aes(date, mean_speed)) +
+  geom_line(size=1.5, color = "orange") +
+  labs(x = "Date", y = "Mean ride speed")
+
+layout <- matrix(c(1,2,3,4,5),5,1,byrow = FALSE)
+multiplot(p1, p2, p3, p4, p5, layout = layout)
+
+p1 <- 1
+p2 <- 1
+p3 <- 1
+p4 <- 1
+p5 <- 1
+
+#relation between trip duration and snowy weather
+
+train %>%
+  group_by(date, has_snow) %>%
+  summarise(all_precipitation = mean(all_precipitation),
+            duration = mean(trip_duration/60)) %>%
+  ggplot(aes(all_precipitation, duration, color = has_snow)) +
+  geom_jitter(width = 0.04, size = 2) +
+  scale_x_sqrt() +
+  labs(x = "The Amount of All Precipitation", y = "Ride duration [minutes]")
+
+#trip duration and speed in snowy weather
+
+train %>%
+  filter(has_snow == "TRUE") %>%
+  group_by(date) %>%
+  summarise(median_duration = median(trip_duration/60),
+            median_speed = median(speed)) %>%
+  arrange(desc(median_duration)) %>%
+  head(10)
+
+#next - fastest routes
+
+
