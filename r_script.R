@@ -1,3 +1,5 @@
+#problem - regression problem - prediction of continous variable - trip duration
+
 library('ggplot2') # visualisation
 library('scales') # visualisation
 library('grid') # visualisation
@@ -773,6 +775,33 @@ train %>%
   arrange(desc(median_duration)) %>%
   head(10)
 
-#next - fastest routes
+#correlation - visualisation of the relations between the parameters using correlation matrix
+
+train %>%
+  select(-id, -pickup_datetime, -dropoff_datetime, -date, -pickup_longitude, -pickup_latitude,
+         -dropoff_longitude, -dropoff_latitude, -jfk_dist_pick, -jfk_dist_drop,
+         -lg_dist_drop, -lg_dist_pick) %>%
+  mutate(
+    vendor_id = as.integer(vendor_id),
+    passenger_count = as.integer(passenger_count),
+    store_and_fwd_flag = as.integer(as.factor(store_and_fwd_flag)),
+    dist = as.integer(dist),
+    bearing = as.integer(bearing),
+    speed = as.integer(speed),
+    month = as.integer(month),
+    wday = as.integer(wday),
+    hour = as.integer(hour),
+    work = as.integer(work),
+    jfk_trip = as.integer(jfk_trip),
+    lg_trip = as.integer(lg_trip),
+    blizzard = as.integer(blizzard),
+    jfk_trip = as.integer(jfk_trip),
+    has_rain = as.integer(has_rain),
+    has_snow = as.integer(has_snow)) %>%
+  select(everything()) %>%
+  cor(use="complete.obs", method = "spearman") %>%
+  corrplot(type = "lower", method = "circle", diag = FALSE)
+
+#next - model design
 
 
