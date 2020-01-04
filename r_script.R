@@ -802,6 +802,59 @@ train %>%
   cor(use="complete.obs", method = "spearman") %>%
   corrplot(type = "lower", method = "circle", diag = FALSE)
 
+#removing non-relevant variables
+#variable removal criterium:
+#removing one of the variables highly correlating (blue)
+#removing variables not affecting anything
+#not affecting trip duration
+
+train %>%
+  select(-id, -pickup_datetime, -dropoff_datetime, -date, -pickup_longitude, -pickup_latitude,
+         -dropoff_longitude, -dropoff_latitude, -jfk_dist_pick, -jfk_dist_drop,
+         -lg_dist_drop, -lg_dist_pick,
+         -max_temp, -min_temp, -all_precipitation, -store_and_fwd_flag, -wday,
+         -snow_depth, -has_snow, -has_rain) %>%
+  mutate(
+    vendor_id = as.integer(vendor_id),
+    passenger_count = as.integer(passenger_count),
+    dist = as.integer(dist),
+    bearing = as.integer(bearing),
+    speed = as.integer(speed),
+    month = as.integer(month),
+    hour = as.integer(hour),
+    work = as.integer(work),
+    jfk_trip = as.integer(jfk_trip),
+    lg_trip = as.integer(lg_trip),
+    blizzard = as.integer(blizzard),
+    jfk_trip = as.integer(jfk_trip)) %>%
+  select(everything()) %>%
+  cor(use="complete.obs", method = "spearman") %>%
+  corrplot(type = "lower", method = "circle", diag = FALSE)
+
 #next - model design
 
+#1 train and test  datasets overlap
+#time and place should be in the same ranges
+
+#time
+#number of pickups by date
+#combine - dataset made in the beginning used to combine train and test datasets
+#new variable is named dset and has the value: train or test
+
+combine %>%
+  mutate(date = date(ymd_hms(pickup_datetime))) %>%
+  group_by(date, dset) %>%
+  count() %>%
+  ungroup() %>%  #remove grouping
+  ggplot(aes(date, n, color = dset)) +  #color = dset separates the two for visualization
+  geom_line(size = 1.5) +
+  labs(x = "Date", y = "Number of trips per day")
+
+#place
+
+combine %>%
+  ggplot(aes(pickup_longitude, pickup_latitude, color = dset)) +
+  geom_point(size = 0.1) +
+  coord_cartesian(xlim = c(-74.1, -73.77), ylim = c(40.6,41)) +
+  facet_wrap(~ dset)
 
