@@ -858,3 +858,145 @@ combine %>%
   coord_cartesian(xlim = c(-74.1, -73.77), ylim = c(40.6,41)) +
   facet_wrap(~ dset)
 
+
+#data formatting = repeated feature engineering on combined data
+
+#data types have to be homogenous on train and test datasets
+
+#feature engineering - building new features from existing ones on combined dataset, not just train like till now
+
+#factors -> integers
+
+#1 jfk and la guradia airports coordinates (from Wikipedia)
+
+jfk_coord <- tibble(lon = -73.778889, lat = 40.639722)
+la_guardia_coord <- tibble(lon = -73.872611, lat = 40.77725)
+
+#2 pickup and dropoff coordinates
+
+pick_coord <- combine %>%
+  select(pickup_longitude, pickup_latitude)
+
+drop_coord <- combine %>%
+  select(dropoff_longitude, dropoff_latitude)
+
+#3 distance and direction between pickup and dropoff coordinates
+
+#distCosine - the shortest distance between two points on a spherical earth
+
+combine$dist <- distCosine(pick_coord, drop_coord)
+
+combine$bearing = bearing(pick_coord, drop_coord)
+
+#3.1 distances between pickup and dropoff locations and airports
+
+combine$jfk_dist_pick <- distCosine(pick_coord, jfk_coord)
+
+combine$jfk_dist_drop <- distCosine(drop_coord, jfk_coord)
+
+combine$lg_dist_pick <- distCosine(pick_coord, la_guardia_coord)
+
+combine$lg_dist_drop <- distCosine(drop_coord, la_guardia_coord)
+
+
+#4 add dates
+
+combine <- combine %>%
+  mutate(pickup_datetime = ymd_hms(pickup_datetime),
+         dropoff_datetime = ymd_hms(dropoff_datetime),
+         date = date(pickup_datetime))
+
+#5 add weather info
+
+foo <- weather %>%
+  
+  select(date, rain, snow_fall, all_precipitation, has_snow, has_rain, snow_depth, max_temp, min_temp)
+
+combine <- left_join(combine, foo, by = "date")
+
+#add columns
+
+combine <- combine %>%
+  
+  mutate(
+    store_and_fwd_flag = as.integer(as.factor(store_and_fwd_flag)),
+    
+    vendor_id = as.integer(vendor_id),
+    
+    date = date(pickup_datetime),
+    
+    month = month(pickup_datetime, label = TRUE),
+    
+    wday = wday(pickup_datetime, label = TRUE),
+    
+    wday = fct_relevel(wday, c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")),
+    
+    hour = hour(pickup_datetime),
+    
+    work = (hour %in% seq(8,18)) & (wday %in% c("Mon","Tues","Wed","Thurs","Fri")),
+    
+    #| performs element-wise operation producing result having length of the longer operand
+    jfk_trip = as.integer((jfk_dist_pick < 2e3) | (jfk_dist_drop < 2e3)), #2e3 is the same as 2 x 10^3 = 2000
+    
+    lg_trip = as.integer((lg_dist_pick < 2e3) | (lg_dist_drop < 2e3)),
+    
+    has_rain = as.integer(has_rain),
+    
+    has_snow = as.integer(has_snow),
+    
+    blizzard = !( (date < ymd("2016-01-22") | (date > ymd("2016-01-29"))) )
+  )
+
+
+#feature selection and classification into predictor, target, identification and auxilliary features
+
+#1 predictor features
+
+train_cols <- c("bearing","rain","dist",
+                "month","wday","hour",
+                "jfk_trip","lg_trip",
+                "pickup_longitude","pickup_latitude",
+                "dropoff_longitude","dropoff_latitude")
+
+#2 target features
+
+target_col <- c("trip_duration")
+
+#3 identificator feature
+
+id_col <- c("id")
+
+#4 auxilliary features
+
+aux_col <- c("dset")
+
+#extraction
+
+#extract (get) identificator column from test dataset
+
+test_id <- combine %>%    #select id from test dset into test_id
+  filter(dset == "test") %>%   #just for test dset
+  select(id_col)
+
+#extract relevant columns
+
+relevant_cols <- c(train_cols, target_col, aux_col)
+
+combine <- combine %>%
+  select(relevant_cols)
+
+#split train and test datasets
+
+train <- combine %>%
+  filter(dset == "train")
+
+#next:
+test <- combine %>%
+  filter(dset == "test") %>%
+  select(c())
+
+
+
+
+
+
