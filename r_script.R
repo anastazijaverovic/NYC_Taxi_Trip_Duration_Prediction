@@ -992,10 +992,94 @@ train <- combine %>%
 
 #next:
 test <- combine %>%
-  filter(dset == "test") %>%
-  select(c())
+  filter(dset == "test")
+
+#evaluation metric - RMSLE - Root Mean Squared Logarithmic Error
+#Essentially, this means that we are optimising the prediction vs data deviations in log space.
+#This has the advantage that large individual outliers don’t get as much weight as they would in a linear metric.
+#sqrt(mean(squared logarithmic errors))
+"
+MSE incorporates both the variance and the bias of the predictor. 
+RMSE is the square root of MSE. 
+In case of unbiased estimator, RMSE is just the square root of variance, 
+which is actually Standard Deviation.
+
+Note: Square root of variance is standard deviation.
+
+In case of RMSLE, you take the log of the predictions and actual values.
+So basically, what changes is the variance that you are measuring. 
+I believe RMSLE is usually used when you don't want to penalize huge differences 
+in the predicted and the actual values when both predicted and true values are huge numbers.
+
+If both predicted and actual values are small: RMSE and RMSLE is same.
+If either predicted or the actual value is big: RMSE > RMSLE
+If both predicted and actual values are big: RMSE > RMSLE (RMSLE becomes almost negligible)
+"
 
 
+#adding 1 to avoid an undefined log(0)
+
+train <- train %>%
+  mutate(trip_duration = log(trip_duration)+1)
+
+#splitting of training data into train and validation data - p = 0.8 - 80% train, 20% validate
+
+set.seed(4321)
+
+trainIndex <- createDataPartition(train$trip_duration, p = 0.8, list = FALSE, times = 1)
+
+train <- train[trainIndex,]
+
+validate <- train[-trainIndex,]
+
+#removing outliers
+
+#trips longer than a day
+#distances between pickup and dropoff locations and airports smaller than 30 000 m - far from NYC
+
+train <- train %>%
+  filter(trip_duration > 24 * 3600,
+         jfk_dist_pick < 3e5 & jfk_dist_drop < 3e5)
+
+#XGBoost model
+#decision-tree gradient boosting algorithm
+"
+Boosting is what we call the step-by-step improvement of a weak learner
+(like a relatively shallow decision tree of max_depth levels) by 
+successively applying it to the results of the previous learning step (for nrounds times in total).
+
+Gradient Boosting focusses on minimising the Loss Function (according to our evaluation metric)
+by training the algorithm on the gradient of this function.
+
+The method of Gradient Decent iteratively moves into the direction of the greatest decent 
+(i.e. most negative first derivative) of the loss function.
+
+The step sizes can vary from iteration to iteration but has a multiplicative shrinkage factor 
+eta in (0,1] associated with it for additional tuning.
+Smaller values of eta result in a slower decent and require higher nrounds.
+"
+
+#convert target variable to xbg matrix
+
+test <- test %>% select(-dset)
+train <- train %>% select(-dset)
+
+train <- train %>%
+  mutate(month = as.integer(month),
+         wday = as.integer(wday))
+
+foo1 <- train %>%
+  select(-trip_duration)
+
+foo2 <- validate %>%
+  select(-trip_duration)
+
+#to resolve
+dtrain <- xgb.DMatrix(as.matrix(foo1), label = train$trip_duration)
+
+dvalid <- xgb.DMatrix(as.matrix(foo2), label = validate$trip_duration)
+
+dtest <- xgb.DMatrix(as.matrix(test))
 
 
 
