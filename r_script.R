@@ -992,7 +992,8 @@ train <- combine %>%
 
 #next:
 test <- combine %>%
-  filter(dset == "test")
+  filter(dset == "test") %>%
+  select(-target_col)
 
 #evaluation metric - RMSLE - Root Mean Squared Logarithmic Error
 #Essentially, this means that we are optimising the prediction vs data deviations in log space.
@@ -1042,6 +1043,7 @@ train <- train %>%
          jfk_dist_pick < 3e5 & jfk_dist_drop < 3e5)
 
 #XGBoost model
+
 #decision-tree gradient boosting algorithm
 "
 Boosting is what we call the step-by-step improvement of a weak learner
@@ -1059,12 +1061,21 @@ eta in (0,1] associated with it for additional tuning.
 Smaller values of eta result in a slower decent and require higher nrounds.
 "
 
-#convert target variable to xbg matrix
+#1 convert target variable to xbg matrix
 
 test <- test %>% select(-dset)
 train <- train %>% select(-dset)
+validate <- validate %>% select(-dset)
 
 train <- train %>%
+  mutate(month = as.integer(month),
+         wday = as.integer(wday))
+
+validate <- validate %>%
+  mutate(month = as.integer(month),
+         wday = as.integer(wday))
+
+test <- test %>%
   mutate(month = as.integer(month),
          wday = as.integer(wday))
 
@@ -1074,13 +1085,101 @@ foo1 <- train %>%
 foo2 <- validate %>%
   select(-trip_duration)
 
-#to resolve
 dtrain <- xgb.DMatrix(as.matrix(foo1), label = train$trip_duration)
 
 dvalid <- xgb.DMatrix(as.matrix(foo2), label = validate$trip_duration)
 
-dtest <- xgb.DMatrix(as.matrix(test))
+dtest <- xgb.DMatrix(as.matrix(test))   #no label in test dataset, trip_duration wasn't selected
 
+#2 make xgb parameters
 
+xgb_params <- list(colsample_bytree = 0.7, #variables per tree 
+                   
+                   subsample = 0.7, #data subset per tree 
+                   
+                   booster = "gbtree",
+                   
+                   max_depth = 5, #tree levels
+                   
+                   eta = 0.3, #shrinkage
+                   
+                   eval_metric = "rmse", 
+                   
+                   objective = "reg:linear",
+                   
+                   seed = 4321
+)
 
+#3 the watchlist parameter
+# The watchlist parameter tells the algorithm 
+#to keep an eye on both the training and validation sample metrics.
 
+watchlist <- list(train = dtrain, validate = dvalid)
+
+#4 classifier training - fitting it to the training data
+
+#setting an R seed - to ensure reproducability
+#to make this model run in the kernel environment, 
+#we will restrict the learning to 60 sample rounds.
+
+set.seed(4321)
+
+xgb_fitting <- xgb.train(params = xgb_params,
+                         data = dtrain,
+                         nrounds = 60,
+                         print_every_n = 5,
+                         watchlist = watchlist)
+
+#5 cross-validation (CV) - estimation of the model’s performance
+
+# use at least a few 100 in your analysis, depending on your XGBoost parameters.
+#The early-stopping parameter will make sure that the CV fitting is stopped
+#once the model can’t be improved through additional steps
+#about RMSE: https://www.statisticshowto.datasciencecentral.com/rmse/
+
+#For example, you may want to stop training your model once the accuracy stops improving.
+#In this situation, there will be a point where the accuracy on the training set
+#continues to improve but the accuracy on unseen data starts to degrade
+
+xgb_cv <-xgb.cv(params = xgb_params, data = dtrain, nrounds = 100, nfold= 5, early_stopping_rounds = 50)
+
+#6 feature importance
+
+importance_matrix <- as_tibble(
+  xgb.importance(
+    feature_names = colnames(train %>% select(-trip_duration)), model = xgb_fitting))
+
+#reorder(Feature, Gain) - reorder all the Features by the Gain
+
+importance_matrix %>%
+  ggplot(aes(reorder(Feature, Gain, FUN = max), Gain, fill = Feature)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = "Importance", y = "Features")
+
+#7 prediction
+
+test_prediction <- predict(xgb_fitting, dtest)
+
+#add new dataset with variables id and new predicted trip_duration
+
+prediction <- test_id %>%
+  mutate(trip_duration = exp(test_prediction) - 1)
+
+#8 plot the distribution of the predicted values
+#compared to the training values for an approximate comparison
+#original test dataset doesn't have trip duration column (pickup and dropoff datetime) so
+#we can't compare predicted trip duration and original trip duration by id
+
+foo <- train %>%
+  select(trip_duration) %>%
+  mutate(dset = "train",
+         trip_duration = exp(trip_duration)-1)
+
+bar <- prediction %>%
+  mutate(dset = "predict")
+
+bind_rows(foo, bar) %>%
+  ggplot(aes(trip_duration, fill = dset)) +
+  geom_density(alpha = 0.5) +
+  scale_x_log10()
